@@ -5,21 +5,17 @@ import time
 import sys
 from threading import Thread, Lock
 
-# ==========================================
-# 1. 설정
-# ==========================================
+
 HEF_FILE = "best_epoch200_1201_nms_350.1.hef"
 WEBCAM_ID = 0 
 CLASSES = { 0: 'Person', 1: 'Hardhat', 2: 'Safety Vest' }
 
 # [튜닝 포인트]
-CONF_THRESHOLD = 0.55 # 탐지 임계값
-SMOOTH_FACTOR = 0.2 # 낮을수록(0.1~0.3) 박스가 무겁고 부드럽게 움직임 (떨림 감소)
-MISS_TOLERANCE = 5 # 박스가 5프레임 정도 사라져도 "안 사라진 척" 유지 (깜빡임 방지)
+CONF_THRESHOLD = 0.55
+SMOOTH_FACTOR = 0.2 
+MISS_TOLERANCE = 5 
 
-# ==========================================
-# [핵심 1] 카메라 스레드 (이전과 동일)
-# ==========================================
+
 class ThreadedCamera:
     def __init__(self, src=0):
         self.capture = cv2.VideoCapture(src)
@@ -52,9 +48,6 @@ class ThreadedCamera:
         self.stopped = True
         self.capture.release()
 
-# -------------------------------------------------
-# [핵심 2] 객체 추적 클래스 (Tracker)
-# -------------------------------------------------
 def compute_iou(boxA, boxB):
     # box: [y1, x1, y2, x2]
     ay1, ax1, ay2, ax2 = boxA
@@ -77,11 +70,10 @@ class TrackedObject:
         self.box = box
         self.score = score
         self.class_id = class_id
-        self.missed_frames = 0 # 몇 프레임이나 놓쳤는지 카운트
+        self.missed_frames = 0 
 
     def update(self, new_box, new_score):
-        # [스무딩] 기존 위치와 새 위치를 부드럽게 섞음 (지수 이동 평균)
-        # alpha=0.2 -> 기존 80%, 새거 20% 반영 (아주 묵직하게 이동)
+        
         alpha = SMOOTH_FACTOR
         self.box = [
             self.box[0] * (1 - alpha) + new_box[0] * alpha,
@@ -90,41 +82,40 @@ class TrackedObject:
             self.box[3] * (1 - alpha) + new_box[3] * alpha
         ]
         self.score = new_score
-        self.missed_frames = 0 # 다시 찾았으니 초기화
+        self.missed_frames = 0 
 
-# 전역 트래커 리스트
+
 trackers = []
 
 def update_trackers(detections):
     global trackers
     
-    # 1. 이번 프레임의 탐지 결과와 기존 트래커 매칭 (IoU 기반)
+    
     matched_indices = []
     
     for det in detections:
         best_iou = 0
         best_tracker_idx = -1
         
-        # 가장 많이 겹치는 기존 트래커 찾기
+       
         for i, trk in enumerate(trackers):
-            if trk.class_id != det['class_id']: continue # 클래스 다르면 패스
+            if trk.class_id != det['class_id']: continue 
             
             iou = compute_iou(det['box'], trk.box)
             if iou > best_iou:
                 best_iou = iou
                 best_tracker_idx = i
         
-        # 매칭 성공 (IoU > 0.3) -> 위치 업데이트
+        
         if best_iou > 0.3 and best_tracker_idx != -1:
             trackers[best_tracker_idx].update(det['box'], det['score'])
             matched_indices.append(best_tracker_idx)
         else:
-            # 매칭 실패 -> 새로운 물체로 등록
+            
             new_trk = TrackedObject(det['box'], det['score'], det['class_id'])
             trackers.append(new_trk)
             
-    # 2. 매칭되지 않은(사라진) 트래커 처리
-    # 바로 지우지 않고, 몇 프레임 봐줌 (깜빡임 방지)
+   
     active_trackers = []
     for i, trk in enumerate(trackers):
         if i in matched_indices:
@@ -132,11 +123,11 @@ def update_trackers(detections):
         else:
             trk.missed_frames += 1
             if trk.missed_frames < MISS_TOLERANCE:
-                active_trackers.append(trk) # 아직은 살려줌 (Ghost)
+                active_trackers.append(trk)
     
     trackers = active_trackers
     
-    # 포맷 변환해서 리턴
+    
     final_results = []
     for trk in trackers:
         final_results.append({
@@ -146,9 +137,7 @@ def update_trackers(detections):
         })
     return final_results
 
-# -------------------------------------------------
-# [함수] 박스 포함 여부 확인 (기존 동일)
-# -------------------------------------------------
+
 def is_inside(person_box, gear_box):
     py1, px1, py2, px2 = person_box
     gy1, gx1, gy2, gx2 = gear_box
@@ -184,16 +173,16 @@ def run_tracker_inference():
                     frame = webcam.read()
                     if frame is None: continue
 
-                    # 전처리
+                    
                     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     resized_image = cv2.resize(image_rgb, (model_w, model_h))
                     input_data = resized_image.astype(np.float32) / 255.0
                     input_data = np.expand_dims(input_data, axis=0)
 
-                    # 추론
+                    
                     output_data = infer_pipeline.infer(input_data)
                     
-                    # 파싱
+                    
                     raw_data_list = list(output_data.values())[0]
                     current_dets = []
                     try:
@@ -207,10 +196,10 @@ def run_tracker_inference():
                     except:
                         pass
                     
-                    # [핵심] 트래커 업데이트 (떨림 방지 & 깜빡임 보정)
+                    
                     final_dets = update_trackers(current_dets)
 
-                    # 그리기 로직 (기존과 동일)
+                    
                     persons = []
                     gears = [] 
                     h, w, _ = frame.shape
@@ -262,7 +251,7 @@ def run_tracker_inference():
                             body_y1 = y1 + int((y2 - y1) / 5)
                             cv2.putText(frame, "NO-Vest", (x1, body_y1 + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
-                    # FPS 출력
+                    
                     curr_time = time.time()
                     fps = 1 / (curr_time - prev_time)
                     prev_time = curr_time
