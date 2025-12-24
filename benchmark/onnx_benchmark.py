@@ -9,16 +9,12 @@ import os
 import signal
 from ultralytics import YOLO
 
-# ==========================================
-# 1. 설정 (파일 이름 확인!)
-# ==========================================
-MODEL_FILE = "best_epoch200_1201.onnx"   # ONNX 파일명
+
+MODEL_FILE = "best_epoch200_1201.onnx"  
 SAVE_VIDEO_PATH = "onnx_benchmark_result.mp4"
 CSV_FILENAME = "onnx_resource_log.csv"
 
-# ==========================================
-# [시스템 감시자] (비교를 위해 동일하게 유지)
-# ==========================================
+
 class SystemMonitor:
     def __init__(self, filename=CSV_FILENAME, interval=1.0):
         self.filename = filename
@@ -104,9 +100,7 @@ class SystemMonitor:
         except Exception as e:
             print(f"[에러] 그래프 생성 실패: {e}")
 
-# ==========================================
-# [메인 실행]
-# ==========================================
+
 def run_onnx_benchmark():
     monitor = SystemMonitor(filename=CSV_FILENAME)
     monitor.start()
@@ -121,7 +115,7 @@ def run_onnx_benchmark():
     print(f">>> [모델 로딩] {MODEL_FILE} (ONNX 모드)...")
    
     try:
-        # Ultralytics는 .onnx 파일도 자동으로 인식해서 ONNX Runtime으로 돌려줍니다!
+        
         model = YOLO(MODEL_FILE, task='detect')
        
         print(">>> [추론 시작] ONNX Runtime으로 동작 중... (종료: 'q')")
@@ -132,12 +126,12 @@ def run_onnx_benchmark():
             ret, frame = cap.read()
             if not ret: break
 
-            # ONNX 추론
+            
             results = model(frame, verbose=False)
            
             annotated_frame = results[0].plot()
 
-            # FPS 계산
+            
             curr_time = time.time()
             fps = 1 / (curr_time - prev_time + 1e-6)
             prev_time = curr_time
