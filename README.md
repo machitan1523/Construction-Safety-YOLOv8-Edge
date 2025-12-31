@@ -1,4 +1,4 @@
-# ⛑️ Implementation and Performance Analysis of Lightweight Object Detection System for Real-time Construction Safety Monitoring on Edge Device
+# ⛑️ Optimizing YOLOv8s for Real-Time Construction Safety Monitoring on Edge Devices via Post-Training Quantization
 
 This project uses compatible Pi and Hailo AI accelerators to verify the use of safety equipment in imports.
 
